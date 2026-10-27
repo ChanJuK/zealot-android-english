@@ -99,10 +99,10 @@ class Zealot private constructor(val context: Context) {
 
     fun showAlert(version: String, changelog: String, installUrl: String)  {
         val dialog  = AlertDialog.Builder(context)
-            .setTitle("New version available ${version}️")
+            .setTitle("앱이 ${version}️버전으로 업데이트 되었습니다.")
             .setMessage(changelog)
-            .setNegativeButton("Not now", null)
-            .setPositiveButton("Update now") { _, _ ->
+            .setNegativeButton("취소", null)
+            .setPositiveButton("업데이트") { _, _ ->
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(installUrl))
                 context.startActivity(intent)
             }
