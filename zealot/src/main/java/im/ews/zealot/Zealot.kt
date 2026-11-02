@@ -82,19 +82,26 @@ class Zealot private constructor(val context: Context) {
     }
 
     fun launch() {
-        val urlBuilder = HttpUrl.parse("${endpoint}/api/apps/latest")!!.newBuilder()
-        urlBuilder.addQueryParameter("channel_key", channelKey())
-        urlBuilder.addQueryParameter("release_version", releaseVersion)
-        urlBuilder.addQueryParameter("build_version", buildVersion.toString())
-        urlBuilder.addQueryParameter("bundle_id", packageName)
-        urlBuilder.addQueryParameter("sdk", sdkInfo)
+        // An update check is optional: bad SDK configuration must not close the host app.
+        val normalizedEndpoint = endpoint?.trim()?.trimEnd('/') ?: return
+        val baseUrl = HttpUrl.parse("$normalizedEndpoint/api/apps/latest") ?: return
 
-        val url = urlBuilder.build()
-        val request = Request.Builder()
-            .url(url)
-            .build()
+        try {
+            val urlBuilder = baseUrl.newBuilder()
+            urlBuilder.addQueryParameter("channel_key", channelKey())
+            urlBuilder.addQueryParameter("release_version", releaseVersion)
+            urlBuilder.addQueryParameter("build_version", buildVersion.toString())
+            urlBuilder.addQueryParameter("bundle_id", packageName)
+            urlBuilder.addQueryParameter("sdk", sdkInfo)
 
-        client.newCall(request).enqueue(Callback(this))
+            val request = Request.Builder()
+                .url(urlBuilder.build())
+                .build()
+
+            client.newCall(request).enqueue(Callback(this))
+        } catch (_: Exception) {
+            // Keep the update check best-effort when its setup cannot complete.
+        }
     }
 
     fun showAlert(version: String, changelog: String, installUrl: String)  {
@@ -103,8 +110,12 @@ class Zealot private constructor(val context: Context) {
             .setMessage(changelog)
             .setNegativeButton("취소", null)
             .setPositiveButton("업데이트") { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(installUrl))
-                context.startActivity(intent)
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(installUrl))
+                    context.startActivity(intent)
+                } catch (_: Exception) {
+                    // A bad install URL must not close the host app.
+                }
             }
             .create()
 

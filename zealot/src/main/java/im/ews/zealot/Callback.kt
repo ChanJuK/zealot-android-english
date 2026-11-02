@@ -4,7 +4,6 @@ import android.app.Activity
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Response
-import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
 
@@ -24,7 +23,7 @@ class Callback(val zealot: Zealot): Callback {
 
     private fun generateChangelog(response: Response) {
         try {
-            val body = response.body()!!.string()
+            val body = response.body()?.string() ?: return
             val reader = JSONObject(body)
             val releaseArray = reader.getJSONArray("releases")
 
@@ -34,29 +33,46 @@ class Callback(val zealot: Zealot): Callback {
             var changelogList = ArrayList<String>()
 
             for (x in 0 until releaseArray.length()) {
-                val releaseItem = releaseArray[x] as JSONObject
-                if (x.equals(0)) {
-                    val releaseVersion = releaseItem.getString("release_version")
-                    val buildVersion = releaseItem.getString("build_version")
+                val releaseItem = releaseArray.optJSONObject(x) ?: continue
+                if (x == 0) {
+                    val releaseVersion = releaseItem.optString("release_version")
+                    val buildVersion = releaseItem.optString("build_version")
+                    installUrl = releaseItem.optString("install_url")
+                    if (releaseVersion.isBlank() || buildVersion.isBlank() || installUrl.isBlank()) {
+                        return
+                    }
                     version = "${releaseVersion} (${buildVersion})"
-                    installUrl = releaseItem.getString("install_url")
                 }
 
-                val changelogArray = releaseItem.getJSONArray("changelog")
+                val changelogArray = releaseItem.optJSONArray("changelog") ?: continue
                 for (y in 0 until changelogArray.length()) {
-                    val changelogItem = changelogArray[y] as JSONObject
+                    val changelogItem = changelogArray.optJSONObject(y) ?: continue
                     val index = "${(y + 1).toString().padStart(2, '0')}"
-                    val message = changelogItem.getString("message")
+                    val message = changelogItem.optString("message")
+                    if (message.isBlank()) { continue }
                     changelogList.add("${index}. ${message}")
                 }
             }
             val changelog = changelogList.joinToString("\n")
 
-            (zealot.context as? Activity)?.runOnUiThread {
-                zealot.showAlert(version, changelog, installUrl)
+            if (version.isBlank() || installUrl.isBlank()) { return }
+
+            val activity = zealot.context as? Activity ?: return
+            activity.runOnUiThread {
+                if (activity.isFinishing ||
+                    (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1 &&
+                        activity.isDestroyed)) {
+                    return@runOnUiThread
+                }
+
+                try {
+                    zealot.showAlert(version, changelog, installUrl)
+                } catch (_: Exception) {
+                    // Do not let a dialog/window error close the host app.
+                }
             }
-        } catch (e: JSONException) {
-            e.printStackTrace()
+        } catch (_: Exception) {
+            // Ignore malformed or unexpected server responses.
         }
     }
 }
