@@ -3,6 +3,7 @@ package im.ews.zealot
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.util.Base64
@@ -60,11 +61,20 @@ class Zealot private constructor(val context: Context) {
         get() = context.packageName
 
     private val packageInfo: PackageInfo
-        get() = context.packageManager.getPackageInfo(packageName, 0)
+        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                packageName,
+                PackageManager.PackageInfoFlags.of(0)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(packageName, 0)
+        }
 
     private val releaseVersion: String
-        get() = packageInfo.versionName
+        get() = packageInfo.versionName ?: ""
 
+    @Suppress("DEPRECATION")
     private val buildVersion: Long
         get() {
             val versionCode: Long
