@@ -23,25 +23,34 @@ class Callback(val zealot: Zealot): Callback {
 
     private fun generateChangelog(response: Response) {
         try {
-            val body = response.body()?.string() ?: return
-            val reader = JSONObject(body)
+            val body = zealot.readResponseBody(response) ?: return
+            val envelope = JSONObject(body)
+            val reader = zealot.verifiedPayload(
+                envelope.optString("signed_payload"),
+                envelope.optString("signature")
+            ) ?: return
+            if (!zealot.isExpectedPayload(reader)) { return }
             val releaseArray = reader.getJSONArray("releases")
 
-            if (releaseArray.length() == 0) { return }
+            if (releaseArray.length() !in 1..Zealot.MAX_RELEASES) { return }
             var version = ""
-            var installUrl = ""
-            var changelogList = ArrayList<String>()
+            var installUri: android.net.Uri? = null
+            val changelogList = ArrayList<String>()
+            var changelogLength = 0
 
             for (x in 0 until releaseArray.length()) {
                 val releaseItem = releaseArray.optJSONObject(x) ?: continue
                 if (x == 0) {
                     val releaseVersion = releaseItem.optString("release_version")
-                    val buildVersion = releaseItem.optString("build_version")
-                    installUrl = releaseItem.optString("install_url")
-                    if (releaseVersion.isBlank() || buildVersion.isBlank() || installUrl.isBlank()) {
+                    val remoteBuildVersion = releaseItem.optString("build_version").toLongOrNull()
+                    val validatedInstallUri = zealot.validateInstallUri(releaseItem.optString("install_url"))
+                    if (releaseVersion.isBlank() || releaseVersion.length > 128 ||
+                        remoteBuildVersion == null || remoteBuildVersion <= zealot.currentBuildVersion() ||
+                        validatedInstallUri == null) {
                         return
                     }
-                    version = "${releaseVersion} (${buildVersion})"
+                    installUri = validatedInstallUri
+                    version = "${releaseVersion} (${remoteBuildVersion})"
                 }
 
                 val changelogArray = releaseItem.optJSONArray("changelog") ?: continue
@@ -50,12 +59,18 @@ class Callback(val zealot: Zealot): Callback {
                     val index = "${(y + 1).toString().padStart(2, '0')}"
                     val message = changelogItem.optString("message")
                     if (message.isBlank()) { continue }
+                    if (message.length > Zealot.MAX_CHANGELOG_ENTRY_LENGTH ||
+                        changelogLength + message.length > Zealot.MAX_CHANGELOG_LENGTH) {
+                        return
+                    }
                     changelogList.add("${index}. ${message}")
+                    changelogLength += message.length
                 }
             }
             val changelog = changelogList.joinToString("\n")
 
-            if (version.isBlank() || installUrl.isBlank()) { return }
+            val safeInstallUri = installUri ?: return
+            if (version.isBlank()) { return }
 
             val activity = zealot.context as? Activity ?: return
             activity.runOnUiThread {
@@ -66,7 +81,7 @@ class Callback(val zealot: Zealot): Callback {
                 }
 
                 try {
-                    zealot.showAlert(version, changelog, installUrl)
+                    zealot.showAlert(version, changelog, safeInstallUri)
                 } catch (_: Exception) {
                     // Do not let a dialog/window error close the host app.
                 }
