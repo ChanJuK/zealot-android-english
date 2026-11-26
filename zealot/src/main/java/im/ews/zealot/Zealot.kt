@@ -44,11 +44,20 @@ class Zealot private constructor(val context: Context) {
         AUTOMATIC, HALFSCREEN
     }
 
+    /**
+     * Receives the first verified channel release that is newer than the installed build.
+     * The callback runs on the main thread and replaces the built-in update dialog.
+     */
+    fun interface UpdateAvailableListener {
+        fun onUpdateAvailable(releaseVersion: String, buildVersion: Long)
+    }
+
     private var endpoint: String? = null
 
     private var channelKeys = hashMapOf<String, String>()
     private var buildType: String = BUILD_TYPE
     private var maxHeight = ScreenHeight.AUTOMATIC
+    private var updateAvailableListener: UpdateAvailableListener? = null
     private val allowedUpdateHosts = hashSetOf<String>()
     private var updateVerificationKey: PublicKey? = null
 
@@ -159,6 +168,14 @@ class Zealot private constructor(val context: Context) {
         return this
     }
 
+    /**
+     * Handles a verified update in the host app instead of showing Zealot's built-in dialog.
+     */
+    fun setOnUpdateAvailable(listener: UpdateAvailableListener?): Zealot {
+        updateAvailableListener = listener
+        return this
+    }
+
     fun launch() {
         // Fail closed: update metadata must come from a configured HTTPS host and be signed.
         val normalizedEndpoint = endpoint?.trim()?.trimEnd('/') ?: return
@@ -208,6 +225,16 @@ class Zealot private constructor(val context: Context) {
 
         if (maxHeight == ScreenHeight.HALFSCREEN) {
             dialog.setMaxHeight((context.resources.displayMetrics.heightPixels / 2.0f).toInt())
+        }
+    }
+
+    internal fun notifyUpdateAvailable(releaseVersion: String, buildVersion: Long): Boolean {
+        val listener = updateAvailableListener ?: return false
+        return try {
+            listener.onUpdateAvailable(releaseVersion, buildVersion)
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 
