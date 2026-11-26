@@ -115,6 +115,28 @@ class Zealot private constructor(val context: Context) {
         }
     }
 
+    internal fun showResponseAlert(versions: String, changelog: String, installUrl: String) {
+        val message = buildString {
+            append("Zealot 채널 응답\n\n")
+            append(versions)
+            if (changelog.isNotBlank()) {
+                append("\n\n변경 사항\n")
+                append(changelog)
+            }
+        }
+
+        AlertDialog.Builder(context)
+            .setTitle("Zealot 업데이트 정보")
+            .setMessage(message)
+            .setNegativeButton("취소", null)
+            .setPositiveButton("업데이트") { _, _ ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(installUrl))
+                context.startActivity(intent)
+            }
+            .create()
+            .show()
+    }
+
     private fun channelKey(): String {
         if (channelKeys.size == 0 ) {
             throw IllegalArgumentException("channelKey is empty")

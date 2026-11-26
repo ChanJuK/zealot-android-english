@@ -29,16 +29,19 @@ class Callback(val zealot: Zealot): Callback {
             val releaseArray = reader.getJSONArray("releases")
 
             if (releaseArray.length() == 0) { return }
-            var version = ""
             var installUrl = ""
             var changelogList = ArrayList<String>()
+            val responseVersions = ArrayList<String>()
 
             for (x in 0 until releaseArray.length()) {
                 val releaseItem = releaseArray[x] as JSONObject
-                if (x.equals(0)) {
-                    val releaseVersion = releaseItem.getString("release_version")
-                    val buildVersion = releaseItem.getString("build_version")
-                    version = "${releaseVersion} (${buildVersion})"
+                val releaseVersion = releaseItem.getString("release_version")
+                val buildVersion = releaseItem.getString("build_version")
+                responseVersions.add(
+                    "${x + 1}. 앱 버전: ${releaseVersion}\n" +
+                        "   빌드 버전: ${buildVersion}"
+                )
+                if (x == 0) {
                     installUrl = releaseItem.getString("install_url")
                 }
 
@@ -53,7 +56,7 @@ class Callback(val zealot: Zealot): Callback {
             val changelog = changelogList.joinToString("\n")
 
             (zealot.context as? Activity)?.runOnUiThread {
-                zealot.showAlert(version, changelog, installUrl)
+                zealot.showResponseAlert(responseVersions.joinToString("\n\n"), changelog, installUrl)
             }
         } catch (e: JSONException) {
             e.printStackTrace()
