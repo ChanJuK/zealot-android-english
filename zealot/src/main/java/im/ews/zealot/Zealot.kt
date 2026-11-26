@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import android.view.WindowManager
 import androidx.appcompat.app.AlertDialog
 import okhttp3.HttpUrl
@@ -15,6 +16,7 @@ class Zealot private constructor(val context: Context) {
     companion object {
         const val VERSION = "0.2.0"
         const val BUILD_TYPE = "default"
+        private const val TAG = "Zealot"
 
         @JvmStatic fun create(context: Context): Zealot {
             return Zealot(context)
@@ -82,19 +84,30 @@ class Zealot private constructor(val context: Context) {
     }
 
     fun launch() {
-        val urlBuilder = HttpUrl.parse("${endpoint}/api/apps/latest")!!.newBuilder()
-        urlBuilder.addQueryParameter("channel_key", channelKey())
-        urlBuilder.addQueryParameter("release_version", releaseVersion)
-        urlBuilder.addQueryParameter("build_version", buildVersion.toString())
-        urlBuilder.addQueryParameter("bundle_id", packageName)
-        urlBuilder.addQueryParameter("sdk", sdkInfo)
+        try {
+            Log.d(
+                TAG,
+                "zealot /api/apps/latest 요청 시작: package=$packageName, " +
+                    "release_version=$releaseVersion, build_version=$buildVersion, build_type=$buildType"
+            )
 
-        val url = urlBuilder.build()
-        val request = Request.Builder()
-            .url(url)
-            .build()
+            val urlBuilder = HttpUrl.parse("${endpoint}/api/apps/latest")!!.newBuilder()
+            urlBuilder.addQueryParameter("channel_key", channelKey())
+            urlBuilder.addQueryParameter("release_version", releaseVersion)
+            urlBuilder.addQueryParameter("build_version", buildVersion.toString())
+            urlBuilder.addQueryParameter("bundle_id", packageName)
+            urlBuilder.addQueryParameter("sdk", sdkInfo)
 
-        client.newCall(request).enqueue(Callback(this))
+            val url = urlBuilder.build()
+            val request = Request.Builder()
+                .url(url)
+                .build()
+
+            client.newCall(request).enqueue(Callback(this))
+        } catch (e: Exception) {
+            Log.e(TAG, "/api/apps/latest 요청 구성 실패", e)
+            throw e
+        }
     }
 
     fun showAlert(version: String, changelog: String, installUrl: String)  {
