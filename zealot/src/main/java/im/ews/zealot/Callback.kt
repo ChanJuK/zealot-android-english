@@ -17,6 +17,8 @@ class Callback(val zealot: Zealot): Callback {
         response.use {
             if (!response.isSuccessful) {
                 Log.e(TAG, "/api/apps/latest 요청 실패: HTTP ${response.code()} ${response.message()}")
+                val errorBody = response.body()?.string().orEmpty()
+                logResponseBody("HTTP ${response.code()} 오류 응답: $errorBody")
                 return
             }
 
